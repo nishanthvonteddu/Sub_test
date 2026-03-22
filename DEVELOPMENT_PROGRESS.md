@@ -1,5 +1,6 @@
 # Development Progress
 
+
 ## Status
 
 - Project: `Subscription Tracker`
