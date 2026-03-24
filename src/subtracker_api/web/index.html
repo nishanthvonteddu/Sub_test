@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Subscription Tracker is a full-bleed recurring spend control surface driven by live FastAPI subscription data."
+      content="Subscription Tracker helps you monitor monthly subscription spend, renewal dates, and lifecycle history in one calm dashboard."
     />
     <title>Subscription Tracker</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -14,17 +14,16 @@
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Syne:wght@600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/landing.css" />
   </head>
   <body>
-    <div class="atmosphere" aria-hidden="true">
-      <span class="glow glow-a"></span>
-      <span class="glow glow-b"></span>
-      <span class="glow glow-c"></span>
-      <span class="grid-haze"></span>
-      <span class="grain"></span>
+    <div class="landing-atmosphere" aria-hidden="true">
+      <span class="landing-glow landing-glow-a"></span>
+      <span class="landing-glow landing-glow-b"></span>
+      <span class="landing-grid"></span>
+      <span class="landing-grain"></span>
     </div>
-    <div class="spotlight" aria-hidden="true"></div>
+    <div class="landing-spotlight" aria-hidden="true"></div>
 
     <header class="site-header js-reveal">
       <div class="site-header-inner">
@@ -35,185 +34,185 @@
             <span>Recurring spend, framed</span>
           </span>
         </a>
+
         <nav class="site-nav" aria-label="Primary">
-          <a class="site-link" href="#surface">Surface</a>
-          <a class="site-link" href="#cadence">Cadence</a>
+          <a class="site-link" href="#proof">Product</a>
+          <a class="site-link" href="#workflow">Workflow</a>
           <a class="site-link" href="/docs">API Docs</a>
-          <a class="site-cta" href="/subscriptions">Live JSON</a>
+          <a class="site-cta" href="/app">Open App</a>
         </nav>
       </div>
     </header>
 
     <main>
-      <section class="hero" id="top">
+      <section class="hero">
         <div class="hero-inner">
           <div class="hero-copy js-reveal">
-            <p class="hero-kicker">Recurring spend intelligence</p>
+            <p class="hero-kicker">Subscription clarity</p>
             <p class="hero-brand">Subscription Tracker</p>
-            <h1>See renewals, burn rate, and timing before they become noise.</h1>
+            <h1>See every renewal before it hits your month.</h1>
             <p class="hero-body">
-              A visual control surface for the subscriptions that quietly compound into
-              monthly cost. The page hydrates from your live API and stays readable in
-              a single scan.
+              Track subscription spend, renewal dates, and lifecycle history in one
+              dashboard built to stay readable in a single scan.
             </p>
             <div class="hero-actions">
-              <a class="cta cta-solid" href="/docs">Open API Docs</a>
-              <a class="cta cta-ghost" href="#surface">Explore the Surface</a>
+              <a class="cta cta-solid" href="/app">Open Dashboard</a>
+              <a class="cta cta-ghost" href="#proof">See What It Covers</a>
             </div>
+
             <dl class="hero-facts">
               <div>
-                <dt>Active plans</dt>
-                <dd id="metric-active">0</dd>
+                <dt>Tracked plans</dt>
+                <dd id="hero-plans">0</dd>
               </div>
               <div>
                 <dt>Monthly baseline</dt>
-                <dd id="metric-monthly">$0.00</dd>
+                <dd id="hero-baseline">$0.00</dd>
               </div>
               <div>
-                <dt>Closest renewal</dt>
-                <dd id="metric-next">No upcoming</dd>
+                <dt>Next renewal</dt>
+                <dd id="hero-next">No upcoming</dd>
               </div>
             </dl>
           </div>
 
-          <div class="hero-stage js-reveal" aria-label="Annualized recurring spend scene">
-            <div class="stage-orbit orbit-a"></div>
-            <div class="stage-orbit orbit-b"></div>
-            <div class="stage-orbit orbit-c"></div>
-            <div class="stage-axis">
-              <span>Weeklies</span>
-              <span>Monthlies</span>
-              <span>Yearlies</span>
-            </div>
-            <div class="hero-stage-core">
-              <p class="stage-label">Annualized exposure</p>
-              <p class="stage-value" id="metric-annual">$0.00</p>
-              <p class="stage-note">
-                Cadence mix updates the moment a subscription lands in the API.
-              </p>
-            </div>
-            <div class="stage-radar">
-              <div class="cadence-ring" id="cadence-ring">
-                <span id="cadence-ring-total">0</span>
+          <div class="hero-stage js-reveal" aria-label="Subscription Tracker product preview">
+            <div class="stage-frame">
+              <div class="stage-summary">
+                <p class="stage-kicker">Live outlook</p>
+                <p class="stage-total" id="hero-stage-total">$0.00</p>
+                <p class="stage-caption">Current monthly subscription baseline</p>
               </div>
-              <ul class="cadence-legend" id="cadence-legend"></ul>
+
+              <div class="stage-forecast">
+                <p class="stage-section-label">Monthly forecast</p>
+                <div id="hero-forecast" class="stage-bars"></div>
+              </div>
+
+              <div class="stage-ledger">
+                <div class="stage-ledger-head">
+                  <p class="stage-section-label">Upcoming renewals</p>
+                  <span id="hero-renewal-count">0 items</span>
+                </div>
+                <ul id="hero-renewals" class="stage-renewals"></ul>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section class="section section-support js-reveal" id="surface">
+      <section class="section section-proof js-reveal" id="proof">
         <div class="section-shell">
           <div class="section-head">
-            <p class="section-kicker">Live surface</p>
-            <h2>One read is enough to understand what renews next.</h2>
+            <p class="section-kicker">What the product gives you</p>
+            <h2>One workspace for monthly spend, renewal timing, and lifecycle dates.</h2>
             <p class="section-body">
-              The interface favors sequence over clutter: current subscriptions,
-              upcoming charge dates, and normalized spend, each with one job.
+              The product is designed for utility first: what you pay, when it renews,
+              when it started, and when it ends.
             </p>
           </div>
 
-          <div class="surface-grid">
-            <section class="surface-column">
-              <div class="surface-meta">
-                <div>
-                  <p class="surface-label">Subscriptions</p>
-                  <h3>Current ledger</h3>
-                </div>
-                <span class="surface-value" id="list-count">0 plans</span>
-              </div>
-              <ul id="subscription-list" class="subscription-list"></ul>
-            </section>
+          <div class="proof-columns">
+            <article class="proof-column">
+              <p class="column-kicker">Monthly visibility</p>
+              <h3>See baseline recurring spend and upcoming monthly charges together.</h3>
+              <p>
+                The forecast view compresses the next several months into a readable
+                spending rhythm instead of scattered reminders.
+              </p>
+            </article>
 
-            <section class="surface-column surface-column-runway">
-              <div class="surface-meta">
-                <div>
-                  <p class="surface-label">Charge runway</p>
-                  <h3>Nearest renewals</h3>
-                </div>
-                <span class="surface-value">Next 6</span>
-              </div>
-              <div id="runway" class="runway"></div>
-            </section>
+            <article class="proof-column">
+              <p class="column-kicker">Renewal timing</p>
+              <h3>Read the exact dates plans renew and the month they land in.</h3>
+              <p>
+                The renewal board groups charges by month, making timing easy to scan
+                before subscriptions compound into noise.
+              </p>
+            </article>
 
-            <section class="surface-column surface-column-signal">
-              <div class="surface-meta">
-                <div>
-                  <p class="surface-label">Burn signal</p>
-                  <h3>Monthly pressure</h3>
-                </div>
-                <span class="surface-value">Normalized</span>
-              </div>
-              <div id="signal-bars" class="signal"></div>
-            </section>
+            <article class="proof-column">
+              <p class="column-kicker">Lifecycle history</p>
+              <h3>Track when subscriptions started, whether they paused, and when they end.</h3>
+              <p>
+                Active, paused, and canceled plans all stay visible in the ledger so
+                spend history remains legible.
+              </p>
+            </article>
           </div>
         </div>
       </section>
 
-      <section class="section section-detail js-reveal" id="cadence">
+      <section class="section section-detail js-reveal" id="workflow">
         <div class="section-shell detail-shell">
           <div class="detail-copy">
-            <p class="section-kicker">Operating rhythm</p>
-            <h2>Cadence matters as much as total spend.</h2>
+            <p class="section-kicker">How it works</p>
+            <h2>Track a plan from first payment to final end date.</h2>
             <p class="section-body">
-              Monthlies hide in plain sight, weeklies compound faster than they look,
-              and yearlies need attention long before renewal day.
+              Add a subscription once, keep the cadence and dates accurate, and let the
+              workspace surface where the next charge lands.
             </p>
           </div>
 
-          <div class="detail-grid">
-            <section class="detail-band">
-              <p class="band-title">How this view reads</p>
-              <ol class="detail-list">
-                <li>Sort renewals by next charge date, not by vendor name.</li>
-                <li>Normalize spend to a monthly baseline so costs compare cleanly.</li>
-                <li>Use cadence mix to spot whether drift is coming from habit or commitment.</li>
-              </ol>
-            </section>
-
-            <section class="detail-band">
-              <p class="band-title">Start with one payload</p>
-              <p class="band-copy">
-                Post a single subscription from FastAPI docs and the control surface
-                tightens around real dates, real vendors, and real cost.
-              </p>
-              <div class="detail-links">
-                <a class="text-link" href="/docs">Open FastAPI docs</a>
-                <a class="text-link" href="/subscriptions">Inspect live JSON</a>
+          <div class="detail-flow">
+            <div class="detail-step">
+              <span>01</span>
+              <div>
+                <h3>Add the plan</h3>
+                <p>Name, amount, cadence, start date, and optional end date.</p>
               </div>
-            </section>
+            </div>
+            <div class="detail-step">
+              <span>02</span>
+              <div>
+                <h3>Read the month board</h3>
+                <p>See when renewals land and what each month is expected to carry.</p>
+              </div>
+            </div>
+            <div class="detail-step">
+              <span>03</span>
+              <div>
+                <h3>Keep lifecycle context</h3>
+                <p>Paused and canceled plans stay in view so you can track what changed.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-surface">
+            <p class="surface-kicker">Inside the workspace</p>
+            <div class="surface-rows">
+              <div>
+                <strong>Monthly forecast</strong>
+                <span>Expected subscription charges over the next 6 months</span>
+              </div>
+              <div>
+                <strong>Renewal board</strong>
+                <span>Grouped by month with start, renewal, and end dates</span>
+              </div>
+              <div>
+                <strong>Subscription ledger</strong>
+                <span>Status, cadence, monthly equivalent, start date, and next renewal</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       <section class="section section-cta js-reveal">
         <div class="section-shell cta-shell">
-          <p class="section-kicker">Ready to wire spend in</p>
-          <h2>Track renewals with less ceremony and more signal.</h2>
+          <p class="section-kicker">Ready to organize recurring spend</p>
+          <h2>Open the dashboard and start tracking subscriptions.</h2>
           <p class="section-body">
-            The API already accepts subscriptions. This page is built to make them legible.
+            Use the app for the working view. Use the API docs if you want to drive it programmatically.
           </p>
           <div class="hero-actions">
-            <a class="cta cta-solid" href="/docs">Create a Subscription</a>
-            <a class="cta cta-ghost" href="/subscriptions">View Raw Data</a>
+            <a class="cta cta-solid" href="/app">Go to the App</a>
+            <a class="cta cta-ghost" href="/docs">Browse the API</a>
           </div>
         </div>
       </section>
     </main>
 
-    <template id="subscription-item-template">
-      <li class="subscription-item">
-        <div class="subscription-copy">
-          <h3 class="sub-name"></h3>
-          <p class="sub-meta"></p>
-        </div>
-        <div class="subscription-value">
-          <span class="sub-amount"></span>
-          <span class="sub-date"></span>
-        </div>
-      </li>
-    </template>
-
-    <script src="/static/app.js" defer></script>
+    <script src="/static/landing.js" defer></script>
   </body>
 </html>
