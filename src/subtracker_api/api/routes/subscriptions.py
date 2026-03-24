@@ -45,9 +45,11 @@ def get_subscription(
 def get_next_charge(
     subscription_id: UUID,
     repo: MemorySubscriptionRepository = Depends(get_subscription_repo),
-) -> dict[str, str]:
+) -> dict[str, str | None]:
     item = repo.get(subscription_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Subscription not found")
-    return {"subscription_id": str(item.id), "next_charge_date": item.next_charge_date.isoformat()}
-
+    return {
+        "subscription_id": str(item.id),
+        "next_charge_date": item.next_charge_date.isoformat() if item.next_charge_date else None,
+    }
