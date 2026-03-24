@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class Cadence(StrEnum):
@@ -27,8 +27,15 @@ class SubscriptionCreate(BaseModel):
     cadence: Cadence = Cadence.MONTHLY
     status: SubscriptionStatus = SubscriptionStatus.ACTIVE
     start_date: date = Field(default_factory=date.today)
+    end_date: date | None = None
     day_of_month: int | None = Field(default=None, ge=1, le=31)
     notes: str | None = Field(default=None, max_length=300)
+
+    @model_validator(mode="after")
+    def validate_date_window(self) -> SubscriptionCreate:
+        if self.end_date is not None and self.end_date < self.start_date:
+            raise ValueError("end_date must be on or after start_date")
+        return self
 
 
 class Subscription(BaseModel):
@@ -42,8 +49,8 @@ class Subscription(BaseModel):
     cadence: Cadence
     status: SubscriptionStatus
     start_date: date
+    end_date: date | None
     day_of_month: int | None
     notes: str | None
-    next_charge_date: date
+    next_charge_date: date | None
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
-
