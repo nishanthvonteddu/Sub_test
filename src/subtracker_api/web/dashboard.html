@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Subscription Tracker dashboard for monitoring monthly spend, renewal timing, and subscription lifecycle dates."
+    />
+    <title>Subscription Tracker Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="ambient" aria-hidden="true">
+      <span class="ambient-glow ambient-glow-a"></span>
+      <span class="ambient-glow ambient-glow-b"></span>
+      <span class="ambient-grid"></span>
+      <span class="ambient-grain"></span>
+    </div>
+    <div class="spotlight" aria-hidden="true"></div>
+
+    <header class="topbar js-reveal">
+      <div class="topbar-inner">
+        <a class="brand" href="/app">
+          <span class="brand-mark">ST</span>
+          <span class="brand-lockup">
+            <strong>Subscription Tracker</strong>
+            <span>Recurring spend workspace</span>
+          </span>
+        </a>
+
+        <div class="topbar-meta">
+          <div class="topbar-chip">
+            <span class="topbar-label">Workspace date</span>
+            <strong id="today-date">-</strong>
+          </div>
+          <div class="topbar-links">
+            <a class="topbar-link" href="/">Marketing</a>
+            <a class="topbar-link" href="/docs">API Docs</a>
+            <a class="topbar-action" href="#manage">Add subscription</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="overview js-reveal">
+        <div class="overview-copy">
+          <p class="eyebrow">Subscription workspace</p>
+          <h1>Monthly spend outlook</h1>
+          <p class="overview-body">
+            Review recurring spend, upcoming renewals, and start or end dates
+            across every subscription you pay for.
+          </p>
+        </div>
+
+        <div class="metric-strip" aria-label="Dashboard summary">
+          <article class="metric">
+            <p>Monthly baseline</p>
+            <h2 id="metric-baseline">$0.00</h2>
+          </article>
+          <article class="metric">
+            <p>Due this month</p>
+            <h2 id="metric-due-month">$0.00</h2>
+          </article>
+          <article class="metric">
+            <p>Next renewal</p>
+            <h2 id="metric-next-renewal">No upcoming</h2>
+          </article>
+          <article class="metric">
+            <p>Tracked plans</p>
+            <h2 id="metric-tracked">0</h2>
+          </article>
+        </div>
+
+        <div class="overview-meta">
+          <p id="last-sync">Waiting for subscription data.</p>
+          <p>Forecast panels include active subscriptions only.</p>
+        </div>
+      </section>
+
+      <div class="workspace">
+        <section class="workspace-main">
+          <section class="band js-reveal" id="forecast">
+            <div class="band-head">
+              <div>
+                <p class="eyebrow">Monthly forecast</p>
+                <h2>Expected charges by month</h2>
+              </div>
+              <p class="band-note">Next 6 months of scheduled charges.</p>
+            </div>
+            <div id="forecast-grid" class="forecast-grid"></div>
+          </section>
+
+          <section class="band js-reveal" id="schedule">
+            <div class="band-head">
+              <div>
+                <p class="eyebrow">Renewal schedule</p>
+                <h2>Month-by-month renewal board</h2>
+              </div>
+              <p class="band-note">Each row shows renewal, start date, and end date.</p>
+            </div>
+            <div id="month-groups" class="month-groups"></div>
+          </section>
+
+          <section class="band js-reveal" id="ledger">
+            <div class="band-head ledger-head">
+              <div>
+                <p class="eyebrow">Subscription ledger</p>
+                <h2>All tracked subscriptions</h2>
+              </div>
+
+              <div class="filters" role="tablist" aria-label="Subscription filters">
+                <button class="filter-btn is-active" data-filter="all" type="button">
+                  All
+                </button>
+                <button class="filter-btn" data-filter="active" type="button">
+                  Active
+                </button>
+                <button class="filter-btn" data-filter="paused" type="button">
+                  Paused
+                </button>
+                <button class="filter-btn" data-filter="canceled" type="button">
+                  Canceled
+                </button>
+              </div>
+            </div>
+
+            <div class="ledger-table">
+              <div class="ledger-columns" aria-hidden="true">
+                <span>Plan</span>
+                <span>Status</span>
+                <span>Cadence</span>
+                <span>Monthly</span>
+                <span>Started</span>
+                <span>Ends</span>
+                <span>Next renewal</span>
+              </div>
+              <div id="subscription-rows" class="subscription-rows"></div>
+            </div>
+          </section>
+        </section>
+
+        <aside class="workspace-side" id="manage">
+          <section class="side-panel js-reveal">
+            <div class="band-head side-head">
+              <div>
+                <p class="eyebrow">Add subscription</p>
+                <h2>Track a plan</h2>
+              </div>
+              <p class="band-note">Active plans flow into the forecast automatically.</p>
+            </div>
+
+            <form id="subscription-form" class="subscription-form">
+              <div class="form-grid">
+                <label class="field field-span-2">
+                  <span>Name</span>
+                  <input
+                    id="subscription-name"
+                    name="name"
+                    type="text"
+                    maxlength="100"
+                    required
+                  />
+                </label>
+
+                <label class="field field-span-2">
+                  <span>Vendor</span>
+                  <input
+                    id="subscription-vendor"
+                    name="vendor"
+                    type="text"
+                    maxlength="100"
+                    required
+                  />
+                </label>
+
+                <label class="field">
+                  <span>Amount</span>
+                  <input
+                    id="subscription-amount"
+                    name="amount"
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    required
+                  />
+                </label>
+
+                <label class="field">
+                  <span>Currency</span>
+                  <input
+                    id="subscription-currency"
+                    name="currency"
+                    type="text"
+                    value="USD"
+                    maxlength="3"
+                    minlength="3"
+                    required
+                  />
+                </label>
+
+                <label class="field">
+                  <span>Cadence</span>
+                  <select id="subscription-cadence" name="cadence">
+                    <option value="monthly" selected>Monthly</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </label>
+
+                <label class="field">
+                  <span>Status</span>
+                  <select id="subscription-status" name="status">
+                    <option value="active" selected>Active</option>
+                    <option value="paused">Paused</option>
+                    <option value="canceled">Canceled</option>
+                  </select>
+                </label>
+
+                <label class="field">
+                  <span>Start date</span>
+                  <input id="subscription-start-date" name="start_date" type="date" required />
+                </label>
+
+                <label class="field">
+                  <span>End date</span>
+                  <input id="subscription-end-date" name="end_date" type="date" />
+                </label>
+
+                <label class="field">
+                  <span>Renewal day</span>
+                  <input
+                    id="subscription-day-of-month"
+                    name="day_of_month"
+                    type="number"
+                    min="1"
+                    max="31"
+                  />
+                </label>
+
+                <div class="field field-helper">
+                  <span>Forecast rule</span>
+                  <p>
+                    Leave renewal day blank to use the start date day. Weekly and yearly
+                    plans ignore this field.
+                  </p>
+                </div>
+
+                <label class="field field-span-2">
+                  <span>Notes</span>
+                  <textarea
+                    id="subscription-notes"
+                    name="notes"
+                    rows="3"
+                    maxlength="300"
+                  ></textarea>
+                </label>
+              </div>
+
+              <div class="form-actions">
+                <button class="primary-btn" id="save-subscription" type="submit">
+                  Save subscription
+                </button>
+                <button class="secondary-btn" type="reset">Clear</button>
+              </div>
+
+              <p id="form-feedback" class="form-feedback" role="status" aria-live="polite"></p>
+            </form>
+          </section>
+
+          <section class="side-panel side-panel-secondary js-reveal">
+            <div class="band-head side-head">
+              <div>
+                <p class="eyebrow">Lifecycle summary</p>
+                <h2>Plan mix</h2>
+              </div>
+              <p class="band-note">Cadence and status counts across the full ledger.</p>
+            </div>
+
+            <div class="mix-panel">
+              <div class="mix-ring" id="cadence-ring">
+                <span id="cadence-ring-total">0</span>
+              </div>
+              <ul class="cadence-legend" id="cadence-legend"></ul>
+            </div>
+
+            <dl class="status-stats">
+              <div>
+                <dt>Active</dt>
+                <dd id="status-active">0</dd>
+              </div>
+              <div>
+                <dt>Paused</dt>
+                <dd id="status-paused">0</dd>
+              </div>
+              <div>
+                <dt>Canceled</dt>
+                <dd id="status-canceled">0</dd>
+              </div>
+              <div>
+                <dt>Ending soon</dt>
+                <dd id="status-ending-soon">0</dd>
+              </div>
+            </dl>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <template id="subscription-row-template">
+      <article class="ledger-row">
+        <div class="ledger-plan">
+          <h3 class="row-name"></h3>
+          <p class="row-meta"></p>
+        </div>
+        <p class="ledger-status"></p>
+        <p class="ledger-cadence"></p>
+        <p class="ledger-monthly"></p>
+        <p class="ledger-start"></p>
+        <p class="ledger-end"></p>
+        <p class="ledger-next"></p>
+      </article>
+    </template>
+
+    <template id="renewal-item-template">
+      <li class="renewal-item">
+        <div class="renewal-date"></div>
+        <div class="renewal-plan">
+          <h3 class="renewal-name"></h3>
+          <p class="renewal-meta"></p>
+        </div>
+        <div class="renewal-amount"></div>
+        <div class="renewal-lifecycle">
+          <p class="renewal-start"></p>
+          <p class="renewal-end"></p>
+        </div>
+      </li>
+    </template>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
