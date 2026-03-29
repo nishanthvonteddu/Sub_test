@@ -217,6 +217,11 @@ a {
   letter-spacing: 0.16em;
 }
 
+.topbar-chip strong {
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+
 .topbar-links {
   display: inline-flex;
   align-items: center;
@@ -303,6 +308,12 @@ a {
   font-size: 1rem;
 }
 
+.overview-owner {
+  margin: 1rem 0 0;
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
 .metric-strip {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -343,6 +354,84 @@ a {
   gap: 1rem;
   color: var(--ink-faint);
   font-size: 0.84rem;
+}
+
+.period-rail {
+  margin-top: 1.6rem;
+  padding: 1.25rem 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: 1.6rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.015)),
+    var(--surface);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(12px);
+}
+
+.period-rail h2 {
+  margin: 0.7rem 0 0;
+  font-family: "Syne", "Space Grotesk", sans-serif;
+  letter-spacing: -0.05em;
+  line-height: 0.95;
+  font-size: clamp(1.8rem, 4vw, 2.5rem);
+}
+
+.period-rail-head,
+.period-rail-body {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.period-rail-body {
+  margin-top: 1.2rem;
+  align-items: end;
+}
+
+.period-controls {
+  flex: 1 1 34rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: end;
+}
+
+.period-actions {
+  display: flex;
+}
+
+.period-actions .secondary-btn {
+  width: 100%;
+}
+
+.period-facts {
+  flex: 0 0 min(28rem, 100%);
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.period-facts div {
+  padding: 0.95rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.period-facts dt {
+  margin: 0;
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.period-facts dd {
+  margin: 0.5rem 0 0;
+  font-family: "Syne", "Space Grotesk", sans-serif;
+  font-size: 1.35rem;
+  letter-spacing: -0.04em;
 }
 
 .workspace {
@@ -1155,7 +1244,9 @@ textarea {
   .ledger-columns,
   .ledger-row,
   .form-grid,
-  .candidate-row {
+  .candidate-row,
+  .period-controls,
+  .period-facts {
     grid-template-columns: 1fr;
   }
 
@@ -1166,6 +1257,8 @@ textarea {
 
   .band-head,
   .side-head,
+  .period-rail-head,
+  .period-rail-body,
   .overview-meta,
   .topbar-inner,
   .topbar-meta {
@@ -1224,7 +1317,8 @@ textarea {
   .metric-strip,
   .forecast-grid,
   .status-stats,
-  .summary-facts {
+  .summary-facts,
+  .period-facts {
     grid-template-columns: 1fr;
   }
 
@@ -1240,7 +1334,8 @@ textarea {
   }
 
   .side-panel,
-  .band {
+  .band,
+  .period-rail {
     padding: 1.1rem 1rem;
     border-radius: 1.35rem;
   }
