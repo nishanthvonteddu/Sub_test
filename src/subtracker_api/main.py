@@ -29,6 +29,10 @@ def create_app() -> FastAPI:
     def dashboard_page() -> FileResponse:
         return FileResponse(web_dir / "dashboard.html")
 
+    @app.get("/login", include_in_schema=False)
+    def login_page() -> FileResponse:
+        return FileResponse(web_dir / "auth.html")
+
     app.include_router(health.router)
     app.include_router(subscriptions.router)
     app.include_router(statement_imports.router)
