@@ -7,6 +7,7 @@ const cadenceColors = {
 
 const statusOrder = ["active", "paused", "canceled"];
 const forecastMonthCount = 6;
+const profileStorageKey = "subtracker.profileName";
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const state = {
@@ -16,6 +17,8 @@ const state = {
   selectedFile: null,
   importingCandidateIds: new Set(),
   loadError: null,
+  selectedDate: parseDate(new Date()) || new Date(),
+  viewerName: readStoredViewerName(),
 };
 
 const formatterCache = new Map();
@@ -28,6 +31,15 @@ const fallbackMoney = new Intl.NumberFormat("en-US", {
 const monthFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   year: "numeric",
+});
+
+const longMonthFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  year: "numeric",
+});
+
+const monthOnlyFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "long",
 });
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -70,6 +82,10 @@ const analyzeStatementButton = document.getElementById("analyze-statement");
 const importAllButton = document.getElementById("import-all-candidates");
 const statementFeedback = document.getElementById("statement-feedback");
 const candidateList = document.getElementById("candidate-list");
+const focusDateField = document.getElementById("focus-date");
+const focusMonthField = document.getElementById("focus-month");
+const focusYearField = document.getElementById("focus-year");
+const focusResetButton = document.getElementById("focus-reset");
 
 let isApplyingFormDefaults = false;
 
@@ -112,6 +128,23 @@ function titleCase(value) {
     return "";
   }
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function sanitizeViewerName(value) {
+  if (!value || typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().replace(/\s+/g, " ");
+  return normalized ? normalized.slice(0, 32) : null;
+}
+
+function readStoredViewerName() {
+  try {
+    return sanitizeViewerName(window.localStorage.getItem(profileStorageKey));
+  } catch {
+    return null;
+  }
 }
 
 function parseDate(value) {
@@ -173,6 +206,14 @@ function addDays(date, amount) {
 
 function monthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function formatFocusMonth(date) {
+  return longMonthFormatter.format(startOfMonth(date));
+}
+
+function isWithinRange(date, rangeStart, rangeEnd) {
+  return Boolean(date && date >= rangeStart && date <= rangeEnd);
 }
 
 function monthlyEquivalent(item) {
@@ -311,9 +352,8 @@ function generateChargeOccurrences(item, rangeStart, rangeEnd) {
   return occurrences;
 }
 
-function buildForecastBuckets(items) {
-  const today = new Date();
-  const rangeStart = startOfMonth(today);
+function buildForecastBuckets(items, anchorDate = new Date()) {
+  const rangeStart = startOfMonth(anchorDate);
   const monthStarts = Array.from({ length: forecastMonthCount }, (_, index) =>
     addMonths(rangeStart, index),
   );
@@ -373,6 +413,12 @@ function getNearestRenewal(items) {
     .sort((left, right) => left.date - right.date)[0];
 }
 
+function getFirstScheduledEntry(buckets) {
+  return buckets
+    .flatMap((bucket) => bucket.entries)
+    .sort((left, right) => left.chargeDate - right.chargeDate || left.name.localeCompare(right.name))[0];
+}
+
 function getPendingCandidates(report) {
   if (!report?.candidates) {
     return [];
@@ -397,13 +443,113 @@ function emptyState(container, message) {
   container.innerHTML = `<p class="empty">${message}</p>`;
 }
 
+function buildYearRange(items, report, selectedDate) {
+  const yearValues = [
+    selectedDate.getFullYear(),
+    new Date().getFullYear() - 2,
+    new Date().getFullYear() + 2,
+  ];
+
+  items.forEach((item) => {
+    [item.start_date, item.end_date, item.next_charge_date].forEach((value) => {
+      const date = parseDate(value);
+      if (date) {
+        yearValues.push(date.getFullYear());
+      }
+    });
+  });
+
+  if (report?.summary) {
+    [report.summary.coverage_start, report.summary.coverage_end, report.summary.next_expected_charge].forEach(
+      (value) => {
+        const date = parseDate(value);
+        if (date) {
+          yearValues.push(date.getFullYear());
+        }
+      },
+    );
+  }
+
+  (report?.candidates || []).forEach((candidate) => {
+    [candidate.first_seen_on, candidate.last_seen_on, candidate.next_expected_on].forEach((value) => {
+      const date = parseDate(value);
+      if (date) {
+        yearValues.push(date.getFullYear());
+      }
+    });
+  });
+
+  return {
+    minYear: Math.min(...yearValues),
+    maxYear: Math.max(...yearValues),
+  };
+}
+
+function renderViewerContext() {
+  state.viewerName = readStoredViewerName();
+  const isSignedIn = Boolean(state.viewerName);
+
+  setText("workspace-user", isSignedIn ? state.viewerName : "Guest mode");
+  setText(
+    "overview-owner",
+    isSignedIn
+      ? `Signed in locally as ${state.viewerName}. Access is still open while backend auth is being wired.`
+      : "Guest mode is active. The dashboard is currently open to everyone.",
+  );
+}
+
+function renderPeriodControls(items, report) {
+  const range = buildYearRange(items, report, state.selectedDate);
+
+  focusMonthField.innerHTML = Array.from({ length: 12 }, (_, monthIndex) => {
+    const label = monthOnlyFormatter.format(new Date(2026, monthIndex, 1));
+    return `<option value="${monthIndex}">${label}</option>`;
+  }).join("");
+
+  focusYearField.innerHTML = Array.from(
+    { length: range.maxYear - range.minYear + 1 },
+    (_, index) => {
+      const year = range.minYear + index;
+      return `<option value="${year}">${year}</option>`;
+    },
+  ).join("");
+
+  focusDateField.value = toInputDate(state.selectedDate);
+  focusMonthField.value = String(state.selectedDate.getMonth());
+  focusYearField.value = String(state.selectedDate.getFullYear());
+  setText("focused-month", formatFocusMonth(state.selectedDate));
+  setText("focus-window-heading", `Billing month in focus: ${formatFocusMonth(state.selectedDate)}.`);
+  setText(
+    "focus-window-note",
+    `${state.viewerName ? `Signed in as ${state.viewerName}.` : "Guest mode is active."} Shift the focus date to inspect which subscriptions renew, start, or end in that billing month.`,
+  );
+}
+
+function renderPeriodFacts(items, buckets) {
+  const rangeStart = startOfMonth(state.selectedDate);
+  const rangeEnd = endOfMonth(state.selectedDate);
+  const focusBucket = buckets[0] || { entries: [], totals: new Map() };
+  const starts = items.filter((item) => isWithinRange(parseDate(item.start_date), rangeStart, rangeEnd)).length;
+  const ends = items.filter((item) => isWithinRange(parseDate(item.end_date), rangeStart, rangeEnd)).length;
+
+  setText("focus-renewals", String(focusBucket.entries.length));
+  setText("focus-starts", String(starts));
+  setText("focus-ends", String(ends));
+  setText("focus-spend", formatCurrencyTotals(focusBucket.totals));
+}
+
 function renderMetrics(items, buckets, report) {
   const activeItems = items.filter((item) => item.status === "active");
   const monthlyTotals = buildCurrencyTotals(activeItems, monthlyEquivalent);
   const thisMonthTotals = buckets[0]?.totals || new Map();
-  const nextRenewal = getNearestRenewal(items);
+  const nextRenewal = getFirstScheduledEntry(buckets);
   const pendingCandidates = getPendingCandidates(report);
+  const focusLabel = formatFocusMonth(state.selectedDate);
+  const focusBucket = buckets[0] || { entries: [] };
 
+  setText("metric-baseline-label", "Monthly baseline");
+  setText("metric-due-month-label", `Scheduled ${focusLabel}`);
+  setText("metric-next-renewal-label", `First from ${focusLabel}`);
   setText("metric-baseline", formatCurrencyTotals(monthlyTotals));
   setText(
     "metric-detected",
@@ -413,7 +559,7 @@ function renderMetrics(items, buckets, report) {
   setText(
     "metric-next-renewal",
     nextRenewal
-      ? `${nextRenewal.item.name} / ${shortDateFormatter.format(nextRenewal.date)}`
+      ? `${nextRenewal.name} / ${shortDateFormatter.format(nextRenewal.chargeDate)}`
       : "No upcoming",
   );
   setText("metric-review", String(pendingCandidates.length));
@@ -424,16 +570,21 @@ function renderMetrics(items, buckets, report) {
   setText(
     "overview-context",
     report
-      ? `Latest statement ${report.filename} surfaced ${report.summary.recurring_candidate_count} recurring candidates across ${formatDateOrFallback(report.summary.coverage_start, "—")} to ${formatDateOrFallback(report.summary.coverage_end, "—")}.`
-      : "Upload a statement PDF to personalize the workspace.",
+      ? `${focusLabel} currently carries ${focusBucket.entries.length} scheduled renewal${focusBucket.entries.length === 1 ? "" : "s"}. Latest statement ${report.filename} surfaced ${report.summary.recurring_candidate_count} recurring candidates across ${formatDateOrFallback(report.summary.coverage_start, "—")} to ${formatDateOrFallback(report.summary.coverage_end, "—")}.`
+      : `${focusLabel} is in focus. Upload a statement PDF to personalize the workspace.`,
   );
 }
 
 function renderForecast(buckets) {
   const target = document.getElementById("forecast-grid");
   const maxTotal = Math.max(...buckets.map((bucket) => bucket.totalNominal), 0);
+  const lastBucket = buckets[buckets.length - 1];
 
   target.innerHTML = "";
+  setText(
+    "forecast-note",
+    `Projected charges from ${formatFocusMonth(state.selectedDate)} through ${lastBucket ? formatFocusMonth(lastBucket.start) : formatFocusMonth(state.selectedDate)}.`,
+  );
 
   buckets.forEach((bucket) => {
     const article = document.createElement("article");
@@ -459,11 +610,17 @@ function renderRenewalBoard(buckets) {
   const target = document.getElementById("month-groups");
   const template = document.getElementById("renewal-item-template");
   const hasEntries = buckets.some((bucket) => bucket.entries.length > 0);
+  const lastBucket = buckets[buckets.length - 1];
+
+  setText(
+    "schedule-note",
+    `Grouped renewals from ${formatFocusMonth(state.selectedDate)} through ${lastBucket ? formatFocusMonth(lastBucket.start) : formatFocusMonth(state.selectedDate)}. Each row shows renewal, start date, and end date.`,
+  );
 
   if (!hasEntries) {
     emptyState(
       target,
-      "No active renewals are scheduled in the next 6 months. Import or add an active subscription to populate the board.",
+      `No active renewals are scheduled from ${formatFocusMonth(state.selectedDate)} onward. Import or add an active subscription to populate the board.`,
     );
     return;
   }
@@ -854,7 +1011,10 @@ function renderCandidateList(report) {
 }
 
 function renderDashboard(items, report) {
-  const buckets = buildForecastBuckets(items);
+  const buckets = buildForecastBuckets(items, state.selectedDate);
+  renderViewerContext();
+  renderPeriodControls(items, report);
+  renderPeriodFacts(items, buckets);
   renderMetrics(items, buckets, report);
   renderImportSummary(report);
   renderCandidateList(report);
@@ -975,6 +1135,48 @@ async function readErrorMessage(response) {
 
 function initializeTodayBadge() {
   setText("today-date", fullDateFormatter.format(new Date()));
+}
+
+function setSelectedDate(date) {
+  const nextDate = parseDate(date);
+  if (!nextDate) {
+    return;
+  }
+
+  state.selectedDate = nextDate;
+  renderDashboard(state.items, state.report);
+}
+
+function bindPeriodControls() {
+  focusDateField.addEventListener("change", () => {
+    setSelectedDate(focusDateField.value);
+  });
+
+  focusMonthField.addEventListener("change", () => {
+    const month = Number(focusMonthField.value);
+    if (Number.isNaN(month)) {
+      return;
+    }
+
+    setSelectedDate(
+      safeDate(state.selectedDate.getFullYear(), month, state.selectedDate.getDate()),
+    );
+  });
+
+  focusYearField.addEventListener("change", () => {
+    const year = Number(focusYearField.value);
+    if (Number.isNaN(year)) {
+      return;
+    }
+
+    setSelectedDate(
+      safeDate(year, state.selectedDate.getMonth(), state.selectedDate.getDate()),
+    );
+  });
+
+  focusResetButton.addEventListener("click", () => {
+    setSelectedDate(new Date());
+  });
 }
 
 function bindFilters() {
@@ -1228,6 +1430,7 @@ function applyRevealMotion() {
 
 initializeTodayBadge();
 setFormDefaults();
+bindPeriodControls();
 bindFilters();
 bindForm();
 bindStatementUpload();
