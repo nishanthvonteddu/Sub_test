@@ -37,11 +37,20 @@
 
         <div class="topbar-meta">
           <div class="topbar-chip">
+            <span class="topbar-label">Viewer</span>
+            <strong id="workspace-user">Guest mode</strong>
+          </div>
+          <div class="topbar-chip">
+            <span class="topbar-label">Focused month</span>
+            <strong id="focused-month">-</strong>
+          </div>
+          <div class="topbar-chip">
             <span class="topbar-label">Workspace date</span>
             <strong id="today-date">-</strong>
           </div>
           <div class="topbar-links">
             <a class="topbar-link" href="/">Marketing</a>
+            <a class="topbar-link" href="/login">Sign in</a>
             <a class="topbar-link" href="/docs">API Docs</a>
             <a class="topbar-action" href="#statement-import">Import statement</a>
           </div>
@@ -58,11 +67,14 @@
             Upload a statement PDF, review detected recurring charges, and let the
             dashboard turn them into a living renewal and spend forecast.
           </p>
+          <p class="overview-owner" id="overview-owner">
+            Guest mode is active. The dashboard is currently open to everyone.
+          </p>
         </div>
 
         <div class="metric-strip" aria-label="Dashboard summary">
           <article class="metric">
-            <p>Monthly baseline</p>
+            <p id="metric-baseline-label">Monthly baseline</p>
             <h2 id="metric-baseline">$0.00</h2>
           </article>
           <article class="metric">
@@ -70,11 +82,11 @@
             <h2 id="metric-detected">$0.00</h2>
           </article>
           <article class="metric">
-            <p>Due this month</p>
+            <p id="metric-due-month-label">Scheduled this month</p>
             <h2 id="metric-due-month">$0.00</h2>
           </article>
           <article class="metric">
-            <p>Next renewal</p>
+            <p id="metric-next-renewal-label">First in view</p>
             <h2 id="metric-next-renewal">No upcoming</h2>
           </article>
           <article class="metric">
@@ -86,6 +98,60 @@
         <div class="overview-meta">
           <p id="last-sync">Waiting for subscription data.</p>
           <p id="overview-context">Upload a statement PDF to personalize the workspace.</p>
+        </div>
+      </section>
+
+      <section class="period-rail js-reveal" aria-label="Dashboard time controls">
+        <div class="period-rail-head">
+          <div>
+            <p class="eyebrow">Time controls</p>
+            <h2 id="focus-window-heading">Billing month in focus: this month.</h2>
+          </div>
+          <p class="band-note" id="focus-window-note">
+            Shift the focus date to inspect which subscriptions renew, start, or end in that billing month.
+          </p>
+        </div>
+
+        <div class="period-rail-body">
+          <div class="period-controls">
+            <label class="field">
+              <span>Focus date</span>
+              <input id="focus-date" type="date" />
+            </label>
+
+            <label class="field">
+              <span>Month</span>
+              <select id="focus-month"></select>
+            </label>
+
+            <label class="field">
+              <span>Year</span>
+              <select id="focus-year"></select>
+            </label>
+
+            <div class="period-actions">
+              <button class="secondary-btn" id="focus-reset" type="button">Today</button>
+            </div>
+          </div>
+
+          <dl class="period-facts">
+            <div>
+              <dt>Renewals in focus</dt>
+              <dd id="focus-renewals">0</dd>
+            </div>
+            <div>
+              <dt>Starts in focus</dt>
+              <dd id="focus-starts">0</dd>
+            </div>
+            <div>
+              <dt>Ends in focus</dt>
+              <dd id="focus-ends">0</dd>
+            </div>
+            <div>
+              <dt>Spend in focus</dt>
+              <dd id="focus-spend">$0.00</dd>
+            </div>
+          </dl>
         </div>
       </section>
 
@@ -187,7 +253,7 @@
                 <p class="eyebrow">Monthly forecast</p>
                 <h2>Expected charges by month</h2>
               </div>
-              <p class="band-note">Next 6 months of scheduled charges.</p>
+              <p class="band-note" id="forecast-note">Next 6 months of scheduled charges.</p>
             </div>
             <div id="forecast-grid" class="forecast-grid"></div>
           </section>
@@ -198,7 +264,9 @@
                 <p class="eyebrow">Renewal schedule</p>
                 <h2>Month-by-month renewal board</h2>
               </div>
-              <p class="band-note">Each row shows renewal, start date, and end date.</p>
+              <p class="band-note" id="schedule-note">
+                Each row shows renewal, start date, and end date.
+              </p>
             </div>
             <div id="month-groups" class="month-groups"></div>
           </section>
