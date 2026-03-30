@@ -10,7 +10,6 @@ from subtracker_api.services.statement_imports import (
     analyze_statement_text,
 )
 
-
 SAMPLE_STATEMENT_TEXT = """
 Statement Period 01/01/2026 - 03/10/2026
 01/03/2026 NETFLIX.COM 19.99 2200.00
@@ -164,6 +163,64 @@ def test_upload_statement_pdf_and_apply_candidates(client: TestClient, monkeypat
         for candidate in latest["candidates"]
         if candidate["candidate_id"] in selected_ids
     )
+
+
+def test_upload_statement_pdf_and_dismiss_candidates(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_analyze_statement_pdf(
+        file_bytes: bytes,
+        filename: str,
+        existing_subscriptions: list[Subscription],
+        today: date | None = None,
+    ):
+        return analyze_statement_text(
+            SAMPLE_STATEMENT_TEXT,
+            filename=filename,
+            existing_subscriptions=existing_subscriptions,
+            today=today or date(2026, 3, 10),
+            page_count=2,
+        )
+
+    monkeypatch.setattr(
+        "subtracker_api.api.routes.statement_imports.analyze_statement_pdf",
+        fake_analyze_statement_pdf,
+    )
+
+    upload_response = client.post(
+        "/statement-imports/pdf",
+        files={"file": ("statement.pdf", b"%PDF-1.4 fake", "application/pdf")},
+    )
+    assert upload_response.status_code == 200
+
+    report = upload_response.json()
+    dismiss_id = next(
+        item["candidate_id"]
+        for item in report["candidates"]
+        if item["vendor"] == "Spotify Family Plan"
+    )
+
+    dismiss_response = client.post(
+        f"/statement-imports/{report['id']}/dismiss",
+        json={"candidate_ids": [dismiss_id]},
+    )
+    assert dismiss_response.status_code == 200
+
+    dismissed_report = dismiss_response.json()
+    assert dismissed_report["summary"]["ready_candidate_count"] == 2
+    spotify = next(
+        item for item in dismissed_report["candidates"] if item["candidate_id"] == dismiss_id
+    )
+    assert spotify["review_state"] == "dismissed"
+
+    latest_response = client.get("/statement-imports/latest")
+    assert latest_response.status_code == 200
+    latest = latest_response.json()
+    latest_spotify = next(
+        item for item in latest["candidates"] if item["candidate_id"] == dismiss_id
+    )
+    assert latest_spotify["review_state"] == "dismissed"
 
 
 def test_upload_statement_pdf_rejects_non_pdf_files(client: TestClient) -> None:

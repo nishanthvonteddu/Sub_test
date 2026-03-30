@@ -814,7 +814,14 @@ a {
 
 .candidate-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
   justify-content: flex-end;
+}
+
+.candidate-dismiss {
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--ink-soft);
 }
 
 .candidate-action.is-primary {

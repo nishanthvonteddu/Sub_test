@@ -16,6 +16,7 @@ const state = {
   report: null,
   selectedFile: null,
   importingCandidateIds: new Set(),
+  dismissingCandidateIds: new Set(),
   editingSubscriptionId: null,
   busySubscriptionIds: new Set(),
   loadError: null,
@@ -435,7 +436,16 @@ function getPendingCandidates(report) {
   if (!report?.candidates) {
     return [];
   }
-  return report.candidates.filter((item) => item.review_state !== "imported");
+  return report.candidates.filter(
+    (item) => !["imported", "dismissed"].includes(item.review_state),
+  );
+}
+
+function getVisibleCandidates(report) {
+  if (!report?.candidates) {
+    return [];
+  }
+  return report.candidates.filter((item) => item.review_state !== "dismissed");
 }
 
 function getHighConfidenceCandidateIds(report) {
@@ -995,7 +1005,7 @@ function renderImportInsights(report) {
     return;
   }
 
-  const candidates = report.candidates || [];
+  const candidates = getVisibleCandidates(report);
   const topCandidate = candidates
     .slice()
     .sort((left, right) => monthlyEquivalentCandidate(right) - monthlyEquivalentCandidate(left))[0];
@@ -1015,7 +1025,9 @@ function renderImportInsights(report) {
     {
       label: "Cadence mix",
       value: `${monthlyCount} monthly / ${weeklyCount} weekly`,
-      note: `${candidates.length} recurring candidate${candidates.length === 1 ? "" : "s"} detected from the latest statement.`,
+      note: candidates.length
+        ? `${candidates.length} recurring candidate${candidates.length === 1 ? "" : "s"} currently remain in review.`
+        : "All detected candidates have been imported or dismissed from the active review queue.",
     },
     {
       label: "Review queue",
@@ -1059,16 +1071,29 @@ function renderCandidateList(report) {
     return;
   }
 
+  const visibleCandidates = getVisibleCandidates(report);
+  if (!visibleCandidates.length) {
+    emptyState(
+      candidateList,
+      "The current review queue is clear. Dismissed candidates are hidden once they are triaged.",
+    );
+    return;
+  }
+
   candidateList.innerHTML = "";
 
-  report.candidates.forEach((candidate) => {
+  visibleCandidates.forEach((candidate) => {
     const fragment = template.content.cloneNode(true);
     const root = fragment.querySelector(".candidate-row");
     const action = fragment.querySelector(".candidate-action");
+    const dismissButton = fragment.querySelector(".candidate-dismiss");
     const nextExpected = parseDate(candidate.next_expected_on);
     const matchLabel = candidate.matched_subscription_name
       ? `Matched to ${candidate.matched_subscription_name}`
       : "New to the dashboard";
+    const isImporting = state.importingCandidateIds.has(candidate.candidate_id);
+    const isDismissing = state.dismissingCandidateIds.has(candidate.candidate_id);
+    const isBusy = isImporting || isDismissing;
 
     root.classList.toggle("is-imported", candidate.review_state === "imported");
     fragment.querySelector(".candidate-name").textContent = candidate.vendor;
@@ -1106,19 +1131,34 @@ function renderCandidateList(report) {
     reviewBadge.dataset.kind = candidate.review_state;
 
     action.dataset.candidateId = candidate.candidate_id;
+    dismissButton.dataset.candidateId = candidate.candidate_id;
     if (candidate.review_state === "imported") {
       action.textContent = "Imported";
       action.disabled = true;
-    } else if (state.importingCandidateIds.has(candidate.candidate_id)) {
+      dismissButton.hidden = true;
+    } else if (isImporting) {
       action.textContent = "Applying...";
       action.disabled = true;
+      dismissButton.textContent = "Dismiss";
+      dismissButton.disabled = true;
+    } else if (isDismissing) {
+      action.textContent = candidate.review_state === "matched" ? "Update subscription" : "Import subscription";
+      action.disabled = true;
+      dismissButton.textContent = "Dismissing...";
+      dismissButton.disabled = true;
     } else if (candidate.review_state === "matched") {
       action.textContent = "Update subscription";
       action.classList.add("is-primary");
+      dismissButton.textContent = "Dismiss";
+      dismissButton.disabled = false;
     } else {
       action.textContent = candidate.confidence_label === "low" ? "Import anyway" : "Import subscription";
       action.classList.add("is-primary");
+      dismissButton.textContent = "Dismiss";
+      dismissButton.disabled = false;
     }
+    action.disabled = action.disabled || isBusy;
+    dismissButton.disabled = dismissButton.hidden ? true : dismissButton.disabled || isBusy;
 
     candidateList.appendChild(fragment);
   });
@@ -1522,6 +1562,45 @@ async function uploadStatement(file) {
   return response.json();
 }
 
+async function dismissCandidateIds(candidateIds) {
+  if (!state.report || !candidateIds.length) {
+    return;
+  }
+
+  candidateIds.forEach((id) => state.dismissingCandidateIds.add(id));
+  renderCandidateList(state.report);
+  importAllButton.disabled = true;
+
+  try {
+    const response = await fetch(`/statement-imports/${state.report.id}/dismiss`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ candidate_ids: candidateIds }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response));
+    }
+
+    state.report = await response.json();
+    renderDashboard(state.items, state.report);
+    setStatementFeedback(
+      `${candidateIds.length} candidate${candidateIds.length === 1 ? "" : "s"} dismissed from the review queue.`,
+    );
+  } catch (error) {
+    setStatementFeedback(
+      error instanceof Error ? error.message : "Unable to dismiss the selected candidates.",
+      true,
+    );
+  } finally {
+    state.dismissingCandidateIds.clear();
+    renderCandidateList(state.report);
+    importAllButton.disabled = getHighConfidenceCandidateIds(state.report).length === 0;
+  }
+}
+
 async function applyCandidateIds(candidateIds) {
   if (!state.report || !candidateIds.length) {
     return;
@@ -1625,8 +1704,14 @@ function bindStatementUpload() {
   });
 
   candidateList.addEventListener("click", async (event) => {
-    const button = event.target.closest(".candidate-action");
+    const button = event.target.closest(".candidate-action, .candidate-dismiss");
     if (!button || !button.dataset.candidateId || button.disabled) {
+      return;
+    }
+
+    if (button.classList.contains("candidate-dismiss")) {
+      setStatementFeedback("Dismissing selected candidate...");
+      await dismissCandidateIds([button.dataset.candidateId]);
       return;
     }
 
