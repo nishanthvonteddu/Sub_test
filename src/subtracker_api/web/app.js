@@ -16,6 +16,9 @@ const state = {
   report: null,
   selectedFile: null,
   importingCandidateIds: new Set(),
+  dismissingCandidateIds: new Set(),
+  editingSubscriptionId: null,
+  busySubscriptionIds: new Set(),
   loadError: null,
   selectedDate: parseDate(new Date()) || new Date(),
   viewerName: readStoredViewerName(),
@@ -68,12 +71,22 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 const form = document.getElementById("subscription-form");
+const nameField = document.getElementById("subscription-name");
+const vendorField = document.getElementById("subscription-vendor");
+const amountField = document.getElementById("subscription-amount");
+const currencyField = document.getElementById("subscription-currency");
 const cadenceField = document.getElementById("subscription-cadence");
+const statusField = document.getElementById("subscription-status");
 const dayOfMonthField = document.getElementById("subscription-day-of-month");
 const startDateField = document.getElementById("subscription-start-date");
 const endDateField = document.getElementById("subscription-end-date");
+const notesField = document.getElementById("subscription-notes");
 const saveButton = document.getElementById("save-subscription");
+const resetFormButton = document.getElementById("reset-subscription-form");
 const formFeedback = document.getElementById("form-feedback");
+const manualEntryHeading = document.getElementById("manual-entry-heading");
+const manualEntryNote = document.getElementById("manual-entry-note");
+const manualEntryState = document.getElementById("manual-entry-state");
 
 const statementForm = document.getElementById("statement-upload-form");
 const statementFileField = document.getElementById("statement-file");
@@ -423,7 +436,16 @@ function getPendingCandidates(report) {
   if (!report?.candidates) {
     return [];
   }
-  return report.candidates.filter((item) => item.review_state !== "imported");
+  return report.candidates.filter(
+    (item) => !["imported", "dismissed"].includes(item.review_state),
+  );
+}
+
+function getVisibleCandidates(report) {
+  if (!report?.candidates) {
+    return [];
+  }
+  return report.candidates.filter((item) => item.review_state !== "dismissed");
 }
 
 function getHighConfidenceCandidateIds(report) {
@@ -441,6 +463,58 @@ function setText(id, value) {
 
 function emptyState(container, message) {
   container.innerHTML = `<p class="empty">${message}</p>`;
+}
+
+function getSubscriptionById(subscriptionId) {
+  return state.items.find((item) => item.id === subscriptionId) || null;
+}
+
+function syncFormMode() {
+  const editingSubscription = state.editingSubscriptionId
+    ? getSubscriptionById(state.editingSubscriptionId)
+    : null;
+  const isEditing = Boolean(editingSubscription);
+
+  manualEntryHeading.textContent = isEditing ? "Edit tracked subscription" : "Track a plan by hand";
+  manualEntryNote.textContent = isEditing
+    ? "Update the subscription details below and save to refresh the ledger and forecast."
+    : "Use this when a plan is missing from the statement or you want to add it directly.";
+  manualEntryState.textContent = isEditing
+    ? `Editing ${editingSubscription.name}. Save changes or clear the form to stop editing.`
+    : "Create a new subscription from scratch.";
+  saveButton.textContent = isEditing ? "Update subscription" : "Save subscription";
+  resetFormButton.textContent = isEditing ? "Cancel edit" : "Clear";
+}
+
+function populateForm(subscription) {
+  nameField.value = subscription.name || "";
+  vendorField.value = subscription.vendor || "";
+  amountField.value = subscription.amount ?? "";
+  currencyField.value = normalizeCurrency(subscription.currency);
+  cadenceField.value = subscription.cadence || "monthly";
+  statusField.value = subscription.status || "active";
+  startDateField.value = subscription.start_date || "";
+  endDateField.value = subscription.end_date || "";
+  dayOfMonthField.value = subscription.day_of_month ?? "";
+  notesField.value = subscription.notes || "";
+  syncDayOfMonthField();
+  syncDateConstraints();
+}
+
+function beginEditingSubscription(subscriptionId) {
+  const subscription = getSubscriptionById(subscriptionId);
+  if (!subscription) {
+    return;
+  }
+
+  state.editingSubscriptionId = subscription.id;
+  populateForm(subscription);
+  syncFormMode();
+  setFormFeedback(`Editing ${subscription.name}.`);
+  document.getElementById("manage").scrollIntoView({
+    behavior: prefersReducedMotion ? "auto" : "smooth",
+    block: "start",
+  });
 }
 
 function buildYearRange(items, report, selectedDate) {
@@ -696,6 +770,53 @@ function sortSubscriptions(left, right) {
   return left.name.localeCompare(right.name);
 }
 
+function ledgerActionsForItem(item) {
+  const actions = [{ kind: "edit", label: "Edit" }];
+
+  if (item.status === "active") {
+    actions.push(
+      { kind: "status", label: "Pause", nextStatus: "paused" },
+      { kind: "status", label: "Cancel", nextStatus: "canceled" },
+    );
+  } else if (item.status === "paused") {
+    actions.push(
+      { kind: "status", label: "Resume", nextStatus: "active" },
+      { kind: "status", label: "Cancel", nextStatus: "canceled" },
+    );
+  } else if (item.status === "canceled") {
+    actions.push({ kind: "status", label: "Resume", nextStatus: "active" });
+  }
+
+  actions.push({ kind: "delete", label: "Delete", tone: "danger" });
+  return actions;
+}
+
+function renderLedgerActionMarkup(item) {
+  const isBusy = state.busySubscriptionIds.has(item.id);
+
+  return ledgerActionsForItem(item)
+    .map((action) => {
+      const attributes = [
+        `class="secondary-btn ledger-action"`,
+        `data-action="${action.kind}"`,
+        `data-subscription-id="${item.id}"`,
+        `type="button"`,
+      ];
+      if (action.nextStatus) {
+        attributes.push(`data-status="${action.nextStatus}"`);
+      }
+      if (action.tone) {
+        attributes.push(`data-tone="${action.tone}"`);
+      }
+      if (isBusy) {
+        attributes.push("disabled");
+      }
+
+      return `<button ${attributes.join(" ")}>${action.label}</button>`;
+    })
+    .join("");
+}
+
 function renderLedger(items) {
   const rows = document.getElementById("subscription-rows");
   const template = document.getElementById("subscription-row-template");
@@ -737,6 +858,9 @@ function renderLedger(items) {
     fragment.querySelector(".ledger-start").textContent = formatDateOrFallback(startDate, "-");
     fragment.querySelector(".ledger-end").textContent = formatDateOrFallback(endDate);
     fragment.querySelector(".ledger-next").textContent = formatDateOrFallback(nextCharge, "No upcoming");
+
+    const actions = fragment.querySelector(".ledger-actions");
+    actions.innerHTML = renderLedgerActionMarkup(item);
 
     rows.appendChild(fragment);
   });
@@ -881,7 +1005,7 @@ function renderImportInsights(report) {
     return;
   }
 
-  const candidates = report.candidates || [];
+  const candidates = getVisibleCandidates(report);
   const topCandidate = candidates
     .slice()
     .sort((left, right) => monthlyEquivalentCandidate(right) - monthlyEquivalentCandidate(left))[0];
@@ -901,7 +1025,9 @@ function renderImportInsights(report) {
     {
       label: "Cadence mix",
       value: `${monthlyCount} monthly / ${weeklyCount} weekly`,
-      note: `${candidates.length} recurring candidate${candidates.length === 1 ? "" : "s"} detected from the latest statement.`,
+      note: candidates.length
+        ? `${candidates.length} recurring candidate${candidates.length === 1 ? "" : "s"} currently remain in review.`
+        : "All detected candidates have been imported or dismissed from the active review queue.",
     },
     {
       label: "Review queue",
@@ -945,16 +1071,29 @@ function renderCandidateList(report) {
     return;
   }
 
+  const visibleCandidates = getVisibleCandidates(report);
+  if (!visibleCandidates.length) {
+    emptyState(
+      candidateList,
+      "The current review queue is clear. Dismissed candidates are hidden once they are triaged.",
+    );
+    return;
+  }
+
   candidateList.innerHTML = "";
 
-  report.candidates.forEach((candidate) => {
+  visibleCandidates.forEach((candidate) => {
     const fragment = template.content.cloneNode(true);
     const root = fragment.querySelector(".candidate-row");
     const action = fragment.querySelector(".candidate-action");
+    const dismissButton = fragment.querySelector(".candidate-dismiss");
     const nextExpected = parseDate(candidate.next_expected_on);
     const matchLabel = candidate.matched_subscription_name
       ? `Matched to ${candidate.matched_subscription_name}`
       : "New to the dashboard";
+    const isImporting = state.importingCandidateIds.has(candidate.candidate_id);
+    const isDismissing = state.dismissingCandidateIds.has(candidate.candidate_id);
+    const isBusy = isImporting || isDismissing;
 
     root.classList.toggle("is-imported", candidate.review_state === "imported");
     fragment.querySelector(".candidate-name").textContent = candidate.vendor;
@@ -992,19 +1131,34 @@ function renderCandidateList(report) {
     reviewBadge.dataset.kind = candidate.review_state;
 
     action.dataset.candidateId = candidate.candidate_id;
+    dismissButton.dataset.candidateId = candidate.candidate_id;
     if (candidate.review_state === "imported") {
       action.textContent = "Imported";
       action.disabled = true;
-    } else if (state.importingCandidateIds.has(candidate.candidate_id)) {
+      dismissButton.hidden = true;
+    } else if (isImporting) {
       action.textContent = "Applying...";
       action.disabled = true;
+      dismissButton.textContent = "Dismiss";
+      dismissButton.disabled = true;
+    } else if (isDismissing) {
+      action.textContent = candidate.review_state === "matched" ? "Update subscription" : "Import subscription";
+      action.disabled = true;
+      dismissButton.textContent = "Dismissing...";
+      dismissButton.disabled = true;
     } else if (candidate.review_state === "matched") {
       action.textContent = "Update subscription";
       action.classList.add("is-primary");
+      dismissButton.textContent = "Dismiss";
+      dismissButton.disabled = false;
     } else {
       action.textContent = candidate.confidence_label === "low" ? "Import anyway" : "Import subscription";
       action.classList.add("is-primary");
+      dismissButton.textContent = "Dismiss";
+      dismissButton.disabled = false;
     }
+    action.disabled = action.disabled || isBusy;
+    dismissButton.disabled = dismissButton.hidden ? true : dismissButton.disabled || isBusy;
 
     candidateList.appendChild(fragment);
   });
@@ -1012,6 +1166,7 @@ function renderCandidateList(report) {
 
 function renderDashboard(items, report) {
   const buckets = buildForecastBuckets(items, state.selectedDate);
+  syncFormMode();
   renderViewerContext();
   renderPeriodControls(items, report);
   renderPeriodFacts(items, buckets);
@@ -1056,6 +1211,10 @@ async function hydrate() {
     state.report = null;
   }
 
+  if (state.editingSubscriptionId && !getSubscriptionById(state.editingSubscriptionId)) {
+    setFormDefaults();
+  }
+
   renderDashboard(state.items, state.report);
 }
 
@@ -1085,15 +1244,17 @@ function syncDateConstraints() {
 }
 
 function setFormDefaults() {
+  state.editingSubscriptionId = null;
   isApplyingFormDefaults = true;
   form.reset();
   isApplyingFormDefaults = false;
   startDateField.value = toInputDate(new Date());
-  document.getElementById("subscription-currency").value = "USD";
+  currencyField.value = "USD";
   cadenceField.value = "monthly";
-  document.getElementById("subscription-status").value = "active";
+  statusField.value = "active";
   syncDayOfMonthField();
   syncDateConstraints();
+  syncFormMode();
   setFormFeedback("");
 }
 
@@ -1192,6 +1353,117 @@ function bindFilters() {
   });
 }
 
+async function updateSubscriptionStatus(subscriptionId, nextStatus, actionLabel) {
+  const subscription = getSubscriptionById(subscriptionId);
+  if (!subscription) {
+    setFormFeedback("This subscription is no longer available.", true);
+    return;
+  }
+
+  state.busySubscriptionIds.add(subscriptionId);
+  renderLedger(state.items);
+  setFormFeedback(`${actionLabel} ${subscription.name}...`);
+
+  try {
+    const response = await fetch(`/subscriptions/${subscriptionId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response));
+    }
+
+    await hydrate();
+    if (state.editingSubscriptionId === subscriptionId) {
+      const updatedSubscription = getSubscriptionById(subscriptionId);
+      if (updatedSubscription) {
+        populateForm(updatedSubscription);
+        syncFormMode();
+      }
+    }
+    setFormFeedback(`${subscription.name} is now ${titleCase(nextStatus)}.`);
+  } catch (error) {
+    setFormFeedback(
+      error instanceof Error ? error.message : "Unable to update the subscription status.",
+      true,
+    );
+  } finally {
+    state.busySubscriptionIds.delete(subscriptionId);
+    renderLedger(state.items);
+  }
+}
+
+async function deleteSubscription(subscriptionId) {
+  const subscription = getSubscriptionById(subscriptionId);
+  if (!subscription) {
+    setFormFeedback("This subscription is no longer available.", true);
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Delete ${subscription.name}? This removes it from the ledger and forecast.`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  state.busySubscriptionIds.add(subscriptionId);
+  renderLedger(state.items);
+  setFormFeedback(`Deleting ${subscription.name}...`);
+
+  try {
+    const response = await fetch(`/subscriptions/${subscriptionId}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response));
+    }
+
+    await hydrate();
+    setFormFeedback(`${subscription.name} deleted.`);
+  } catch (error) {
+    setFormFeedback(
+      error instanceof Error ? error.message : "Unable to delete the subscription.",
+      true,
+    );
+  } finally {
+    state.busySubscriptionIds.delete(subscriptionId);
+    renderLedger(state.items);
+  }
+}
+
+function bindLedgerActions() {
+  document.getElementById("subscription-rows").addEventListener("click", async (event) => {
+    const button = event.target.closest(".ledger-action");
+    if (!button || !button.dataset.subscriptionId || button.disabled) {
+      return;
+    }
+
+    if (button.dataset.action === "edit") {
+      beginEditingSubscription(button.dataset.subscriptionId);
+      return;
+    }
+
+    if (button.dataset.action === "status" && button.dataset.status) {
+      await updateSubscriptionStatus(
+        button.dataset.subscriptionId,
+        button.dataset.status,
+        button.textContent.trim(),
+      );
+      return;
+    }
+
+    if (button.dataset.action === "delete") {
+      await deleteSubscription(button.dataset.subscriptionId);
+    }
+  });
+}
+
 function bindForm() {
   cadenceField.addEventListener("change", syncDayOfMonthField);
   startDateField.addEventListener("change", syncDateConstraints);
@@ -1206,18 +1478,29 @@ function bindForm() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const editingSubscription = state.editingSubscriptionId
+      ? getSubscriptionById(state.editingSubscriptionId)
+      : null;
+    if (state.editingSubscriptionId && !editingSubscription) {
+      setFormFeedback("This subscription is no longer available. Clear the form and try again.", true);
+      return;
+    }
+    const isEditing = Boolean(editingSubscription);
     saveButton.disabled = true;
-    setFormFeedback("Saving subscription...");
+    setFormFeedback(isEditing ? "Updating subscription..." : "Saving subscription...");
 
     try {
       const payload = buildPayloadFromForm();
-      const response = await fetch("/subscriptions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        isEditing ? `/subscriptions/${editingSubscription.id}` : "/subscriptions",
+        {
+          method: isEditing ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
 
       if (!response.ok) {
         throw new Error(await readErrorMessage(response));
@@ -1225,9 +1508,14 @@ function bindForm() {
 
       setFormDefaults();
       await hydrate();
-      setFormFeedback(`${payload.name} saved.`);
+      setFormFeedback(`${payload.name} ${isEditing ? "updated" : "saved"}.`);
     } catch (error) {
-      setFormFeedback(error instanceof Error ? error.message : "Unable to save subscription.", true);
+      setFormFeedback(
+        error instanceof Error
+          ? error.message
+          : `Unable to ${isEditing ? "update" : "save"} subscription.`,
+        true,
+      );
     } finally {
       saveButton.disabled = false;
     }
@@ -1272,6 +1560,45 @@ async function uploadStatement(file) {
   }
 
   return response.json();
+}
+
+async function dismissCandidateIds(candidateIds) {
+  if (!state.report || !candidateIds.length) {
+    return;
+  }
+
+  candidateIds.forEach((id) => state.dismissingCandidateIds.add(id));
+  renderCandidateList(state.report);
+  importAllButton.disabled = true;
+
+  try {
+    const response = await fetch(`/statement-imports/${state.report.id}/dismiss`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ candidate_ids: candidateIds }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response));
+    }
+
+    state.report = await response.json();
+    renderDashboard(state.items, state.report);
+    setStatementFeedback(
+      `${candidateIds.length} candidate${candidateIds.length === 1 ? "" : "s"} dismissed from the review queue.`,
+    );
+  } catch (error) {
+    setStatementFeedback(
+      error instanceof Error ? error.message : "Unable to dismiss the selected candidates.",
+      true,
+    );
+  } finally {
+    state.dismissingCandidateIds.clear();
+    renderCandidateList(state.report);
+    importAllButton.disabled = getHighConfidenceCandidateIds(state.report).length === 0;
+  }
 }
 
 async function applyCandidateIds(candidateIds) {
@@ -1377,8 +1704,14 @@ function bindStatementUpload() {
   });
 
   candidateList.addEventListener("click", async (event) => {
-    const button = event.target.closest(".candidate-action");
+    const button = event.target.closest(".candidate-action, .candidate-dismiss");
     if (!button || !button.dataset.candidateId || button.disabled) {
+      return;
+    }
+
+    if (button.classList.contains("candidate-dismiss")) {
+      setStatementFeedback("Dismissing selected candidate...");
+      await dismissCandidateIds([button.dataset.candidateId]);
       return;
     }
 
@@ -1432,6 +1765,7 @@ initializeTodayBadge();
 setFormDefaults();
 bindPeriodControls();
 bindFilters();
+bindLedgerActions();
 bindForm();
 bindStatementUpload();
 applySpotlightMotion();

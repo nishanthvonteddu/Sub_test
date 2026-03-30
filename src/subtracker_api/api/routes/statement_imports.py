@@ -11,6 +11,7 @@ from subtracker_api.models.imports import (
     RecurringTransactionCandidate,
     StatementImportApplyRequest,
     StatementImportApplyResult,
+    StatementImportDismissRequest,
     StatementImportReport,
 )
 from subtracker_api.models.subscription import Cadence, Subscription, SubscriptionCreate
@@ -22,7 +23,6 @@ from subtracker_api.services.statement_imports import (
     analyze_statement_pdf,
     build_statement_summary,
 )
-
 
 router = APIRouter(prefix="/statement-imports", tags=["statement-imports"])
 
@@ -132,6 +132,36 @@ def apply_statement_candidates(
         updated_subscriptions=updated,
         skipped_candidate_ids=skipped,
     )
+
+
+@router.post("/{report_id}/dismiss", response_model=StatementImportReport)
+def dismiss_statement_candidates(
+    report_id: UUID,
+    payload: StatementImportDismissRequest,
+    repo: MemoryStatementImportRepository = Depends(get_statement_import_repo),
+) -> StatementImportReport:
+    report = repo.get(report_id)
+    if report is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Statement import not found")
+
+    selected_ids = set(payload.candidate_ids)
+    next_candidates: list[RecurringTransactionCandidate] = []
+
+    for candidate in report.candidates:
+        if (
+            candidate.candidate_id in selected_ids
+            and candidate.review_state not in {CandidateReviewState.IMPORTED, CandidateReviewState.DISMISSED}
+        ):
+            next_candidates.append(
+                candidate.model_copy(update={"review_state": CandidateReviewState.DISMISSED})
+            )
+            continue
+
+        next_candidates.append(candidate)
+
+    updated_report = report.model_copy(update={"candidates": next_candidates})
+    updated_report = updated_report.model_copy(update={"summary": build_statement_summary(updated_report)})
+    return repo.save(updated_report)
 
 
 def build_subscription_from_candidate(

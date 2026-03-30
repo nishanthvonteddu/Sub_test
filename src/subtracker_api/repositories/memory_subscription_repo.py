@@ -24,6 +24,9 @@ class MemorySubscriptionRepository:
         self._items[item.id] = item
         return item
 
+    def delete(self, subscription_id: UUID) -> Subscription | None:
+        return self._items.pop(subscription_id, None)
+
     def extend(self, items: Iterable[Subscription]) -> None:
         for item in items:
             self._items[item.id] = item

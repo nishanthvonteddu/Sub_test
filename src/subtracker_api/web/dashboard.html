@@ -303,6 +303,7 @@
                 <span>Started</span>
                 <span>Ends</span>
                 <span>Next renewal</span>
+                <span>Actions</span>
               </div>
               <div id="subscription-rows" class="subscription-rows"></div>
             </div>
@@ -314,14 +315,17 @@
             <div class="band-head side-head">
               <div>
                 <p class="eyebrow">Manual entry</p>
-                <h2>Track a plan by hand</h2>
+                <h2 id="manual-entry-heading">Track a plan by hand</h2>
               </div>
-              <p class="band-note">
+              <p class="band-note" id="manual-entry-note">
                 Use this when a plan is missing from the statement or you want to add it directly.
               </p>
             </div>
 
             <form id="subscription-form" class="subscription-form">
+              <p id="manual-entry-state" class="band-note form-mode-note">
+                Create a new subscription from scratch.
+              </p>
               <div class="form-grid">
                 <label class="field field-span-2">
                   <span>Name</span>
@@ -432,7 +436,7 @@
                 <button class="primary-btn" id="save-subscription" type="submit">
                   Save subscription
                 </button>
-                <button class="secondary-btn" type="reset">Clear</button>
+                <button class="secondary-btn" id="reset-subscription-form" type="reset">Clear</button>
               </div>
 
               <p id="form-feedback" class="form-feedback" role="status" aria-live="polite"></p>
@@ -492,6 +496,7 @@
         <p class="ledger-start"></p>
         <p class="ledger-end"></p>
         <p class="ledger-next"></p>
+        <div class="ledger-actions"></div>
       </article>
     </template>
 
@@ -533,6 +538,7 @@
           <span class="candidate-badge candidate-review"></span>
         </div>
         <div class="candidate-actions">
+          <button class="secondary-btn candidate-dismiss" type="button"></button>
           <button class="secondary-btn candidate-action" type="button"></button>
         </div>
       </article>

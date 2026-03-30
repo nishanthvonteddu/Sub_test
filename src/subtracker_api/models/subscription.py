@@ -38,6 +38,10 @@ class SubscriptionCreate(BaseModel):
         return self
 
 
+class SubscriptionStatusUpdate(BaseModel):
+    status: SubscriptionStatus
+
+
 class Subscription(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

@@ -19,6 +19,7 @@ class CandidateReviewState(StrEnum):
     READY = "ready"
     MATCHED = "matched"
     IMPORTED = "imported"
+    DISMISSED = "dismissed"
 
 
 class CurrencyTotal(BaseModel):
@@ -97,6 +98,10 @@ class StatementImportReport(BaseModel):
 
 
 class StatementImportApplyRequest(BaseModel):
+    candidate_ids: list[str] = Field(min_length=1)
+
+
+class StatementImportDismissRequest(BaseModel):
     candidate_ids: list[str] = Field(min_length=1)
 
 

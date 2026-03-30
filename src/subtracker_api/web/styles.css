@@ -814,7 +814,14 @@ a {
 
 .candidate-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
   justify-content: flex-end;
+}
+
+.candidate-dismiss {
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--ink-soft);
 }
 
 .candidate-action.is-primary {
@@ -927,7 +934,7 @@ a {
 .ledger-columns,
 .ledger-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) 0.7fr 0.7fr 0.8fr 0.8fr 0.8fr 0.9fr;
+  grid-template-columns: minmax(0, 1.45fr) 0.68fr 0.68fr 0.8fr 0.8fr 0.8fr 0.9fr minmax(7.5rem, 0.95fr);
   gap: 1rem;
 }
 
@@ -958,6 +965,24 @@ a {
 .ledger-status,
 .ledger-cadence {
   margin-top: 0;
+}
+
+.ledger-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+
+.ledger-action {
+  min-height: 2.45rem;
+  padding: 0.55rem 0.78rem;
+  justify-content: center;
+}
+
+.ledger-action[data-tone="danger"] {
+  border-color: rgba(255, 177, 166, 0.34);
+  color: #ffd0c9;
 }
 
 .status-text {
@@ -1015,6 +1040,10 @@ a {
   margin-top: 1.2rem;
   display: grid;
   gap: 1rem;
+}
+
+.form-mode-note {
+  margin: 0;
 }
 
 .form-grid {
@@ -1287,6 +1316,10 @@ textarea {
   }
 
   .candidate-actions {
+    justify-content: start;
+  }
+
+  .ledger-actions {
     justify-content: start;
   }
 
