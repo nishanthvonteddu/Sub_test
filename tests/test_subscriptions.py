@@ -78,6 +78,40 @@ def test_update_subscription_reuses_existing_record(client: TestClient) -> None:
     assert data[0]["name"] == "Netflix Premium"
 
 
+def test_update_subscription_status_recalculates_next_charge(client: TestClient) -> None:
+    create_response = client.post(
+        "/subscriptions",
+        json={
+            "name": "Music Box",
+            "vendor": "Music Box",
+            "amount": 8.99,
+            "currency": "USD",
+            "cadence": "monthly",
+            "start_date": "2026-03-04",
+            "day_of_month": 4,
+        },
+    )
+    created = create_response.json()
+
+    pause_response = client.patch(
+        f"/subscriptions/{created['id']}/status",
+        json={"status": "paused"},
+    )
+    assert pause_response.status_code == 200
+    paused = pause_response.json()
+    assert paused["status"] == "paused"
+    assert paused["next_charge_date"] is None
+
+    resume_response = client.patch(
+        f"/subscriptions/{created['id']}/status",
+        json={"status": "active"},
+    )
+    assert resume_response.status_code == 200
+    resumed = resume_response.json()
+    assert resumed["status"] == "active"
+    assert resumed["next_charge_date"] >= date.today().isoformat()
+
+
 def test_canceled_subscription_has_no_next_charge(client: TestClient) -> None:
     payload = {
         "name": "Gym Membership",

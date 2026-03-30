@@ -962,11 +962,14 @@ a {
 
 .ledger-actions {
   display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
   justify-content: flex-end;
 }
 
 .ledger-action {
-  width: 100%;
+  min-height: 2.45rem;
+  padding: 0.55rem 0.78rem;
   justify-content: center;
 }
 
@@ -1301,6 +1304,10 @@ textarea {
   }
 
   .candidate-actions {
+    justify-content: start;
+  }
+
+  .ledger-actions {
     justify-content: start;
   }
 

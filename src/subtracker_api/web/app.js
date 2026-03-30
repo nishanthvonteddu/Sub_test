@@ -17,6 +17,7 @@ const state = {
   selectedFile: null,
   importingCandidateIds: new Set(),
   editingSubscriptionId: null,
+  busySubscriptionIds: new Set(),
   loadError: null,
   selectedDate: parseDate(new Date()) || new Date(),
   viewerName: readStoredViewerName(),
@@ -759,6 +760,49 @@ function sortSubscriptions(left, right) {
   return left.name.localeCompare(right.name);
 }
 
+function ledgerActionsForItem(item) {
+  const actions = [{ kind: "edit", label: "Edit" }];
+
+  if (item.status === "active") {
+    actions.push(
+      { kind: "status", label: "Pause", nextStatus: "paused" },
+      { kind: "status", label: "Cancel", nextStatus: "canceled" },
+    );
+  } else if (item.status === "paused") {
+    actions.push(
+      { kind: "status", label: "Resume", nextStatus: "active" },
+      { kind: "status", label: "Cancel", nextStatus: "canceled" },
+    );
+  } else if (item.status === "canceled") {
+    actions.push({ kind: "status", label: "Resume", nextStatus: "active" });
+  }
+
+  return actions;
+}
+
+function renderLedgerActionMarkup(item) {
+  const isBusy = state.busySubscriptionIds.has(item.id);
+
+  return ledgerActionsForItem(item)
+    .map((action) => {
+      const attributes = [
+        `class="secondary-btn ledger-action"`,
+        `data-action="${action.kind}"`,
+        `data-subscription-id="${item.id}"`,
+        `type="button"`,
+      ];
+      if (action.nextStatus) {
+        attributes.push(`data-status="${action.nextStatus}"`);
+      }
+      if (isBusy) {
+        attributes.push("disabled");
+      }
+
+      return `<button ${attributes.join(" ")}>${action.label}</button>`;
+    })
+    .join("");
+}
+
 function renderLedger(items) {
   const rows = document.getElementById("subscription-rows");
   const template = document.getElementById("subscription-row-template");
@@ -802,11 +846,7 @@ function renderLedger(items) {
     fragment.querySelector(".ledger-next").textContent = formatDateOrFallback(nextCharge, "No upcoming");
 
     const actions = fragment.querySelector(".ledger-actions");
-    actions.innerHTML = `
-      <button class="secondary-btn ledger-action" data-action="edit" data-subscription-id="${item.id}" type="button">
-        Edit
-      </button>
-    `;
+    actions.innerHTML = renderLedgerActionMarkup(item);
 
     rows.appendChild(fragment);
   });
@@ -1269,15 +1309,68 @@ function bindFilters() {
   });
 }
 
+async function updateSubscriptionStatus(subscriptionId, nextStatus, actionLabel) {
+  const subscription = getSubscriptionById(subscriptionId);
+  if (!subscription) {
+    setFormFeedback("This subscription is no longer available.", true);
+    return;
+  }
+
+  state.busySubscriptionIds.add(subscriptionId);
+  renderLedger(state.items);
+  setFormFeedback(`${actionLabel} ${subscription.name}...`);
+
+  try {
+    const response = await fetch(`/subscriptions/${subscriptionId}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await readErrorMessage(response));
+    }
+
+    await hydrate();
+    if (state.editingSubscriptionId === subscriptionId) {
+      const updatedSubscription = getSubscriptionById(subscriptionId);
+      if (updatedSubscription) {
+        populateForm(updatedSubscription);
+        syncFormMode();
+      }
+    }
+    setFormFeedback(`${subscription.name} is now ${titleCase(nextStatus)}.`);
+  } catch (error) {
+    setFormFeedback(
+      error instanceof Error ? error.message : "Unable to update the subscription status.",
+      true,
+    );
+  } finally {
+    state.busySubscriptionIds.delete(subscriptionId);
+    renderLedger(state.items);
+  }
+}
+
 function bindLedgerActions() {
-  document.getElementById("subscription-rows").addEventListener("click", (event) => {
+  document.getElementById("subscription-rows").addEventListener("click", async (event) => {
     const button = event.target.closest(".ledger-action");
-    if (!button || !button.dataset.subscriptionId) {
+    if (!button || !button.dataset.subscriptionId || button.disabled) {
       return;
     }
 
     if (button.dataset.action === "edit") {
       beginEditingSubscription(button.dataset.subscriptionId);
+      return;
+    }
+
+    if (button.dataset.action === "status" && button.dataset.status) {
+      await updateSubscriptionStatus(
+        button.dataset.subscriptionId,
+        button.dataset.status,
+        button.textContent.trim(),
+      );
     }
   });
 }
